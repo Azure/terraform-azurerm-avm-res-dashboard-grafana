@@ -50,7 +50,7 @@ resource "azurerm_dashboard_grafana_managed_private_endpoint" "this" {
   name                         = each.value.name
   private_link_resource_id     = each.value.private_link_resource_id
   group_ids                    = each.value.group_ids
-  private_link_resource_region = each.value.private_link_resource_region != null ? each.value.private_link_resource_region : var.location # Is this required?
+  private_link_resource_region = each.value.private_link_resource_region
   tags                         = var.tags
 }
 
