@@ -46,7 +46,7 @@ resource "random_integer" "region_index" {
 # This ensures we have unique CAF compliant names for our resources.
 module "naming" {
   source  = "Azure/naming/azurerm"
-  version = "~> 0.3"
+  version = "~> 0.4"
 }
 
 # This is required for resource modules
@@ -62,12 +62,13 @@ resource "azurerm_resource_group" "this" {
 module "test" {
   source = "../../"
 
-  # source             = "Azure/avm-<res/ptn>-<name>/azurerm"
+  grafana_major_version = 11
+  # source             = "Azure/avm-res-dashboard-grafana/azurerm"
   # ...
   location            = azurerm_resource_group.this.location
-  name                = "TODO" # TODO update with module.naming.<RESOURCE_TYPE>.name_unique
+  name                = module.naming.dashboard_grafana.name_unique
   resource_group_name = azurerm_resource_group.this.name
-  enable_telemetry    = var.enable_telemetry # see variables.tf
+  enable_telemetry    = var.enable_telemetry
 }
 ```
 
@@ -122,7 +123,7 @@ The following Modules are called:
 
 Source: Azure/naming/azurerm
 
-Version: ~> 0.3
+Version: ~> 0.4
 
 ### <a name="module_regions"></a> [regions](#module\_regions)
 

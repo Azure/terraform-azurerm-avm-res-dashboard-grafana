@@ -1,18 +1,24 @@
+variable "grafana_major_version" {
+  type        = number
+  description = "Which major version of Grafana to deploy. Possible values are `10`, `11`."
+}
+
+#------------#
+# AVM Common #
+#------------#
 variable "location" {
   type        = string
-  description = "Azure region where the resource should be deployed."
+  description = "Azure region where the Dashboard Grafana resource should be deployed."
   nullable    = false
 }
 
 variable "name" {
   type        = string
-  description = "The name of the this resource."
+  description = "The name of the Dashboard Grafana resource."
 
   validation {
-    condition     = can(regex("TODO", var.name))
-    error_message = "The name must be TODO." # TODO remove the example below once complete:
-    #condition     = can(regex("^[a-z0-9]{5,50}$", var.name))
-    #error_message = "The name must be between 5 and 50 characters long and can only contain lowercase letters and numbers."
+    condition     = can(regex("^[a-zA-Z]{1}[a-zA-Z0-9-]{0,21}?[a-zA-Z0-9]{1}$", var.name))
+    error_message = "The name must begin with a letter, can only be alphanumeric characters or hyphens, must be 23 characters long or smaller, and the name must end with an alphanumeric character."
   }
 }
 
@@ -20,6 +26,24 @@ variable "name" {
 variable "resource_group_name" {
   type        = string
   description = "The resource group where the resources will be deployed."
+}
+
+variable "api_key_enabled" {
+  type        = bool
+  default     = false
+  description = "Whether to enable the api key setting of the Grafana instance. Defaults to `false`."
+}
+
+variable "auto_generated_domain_name_label_scope" {
+  type        = string
+  default     = "TenantReuse"
+  description = "Scope for dns deterministic name hash calculation. The only possible value is `TenantReuse`. Defaults to `TenantReuse`."
+}
+
+variable "azure_monitor_workspace_integrations" {
+  type        = list(string)
+  default     = []
+  description = "A list of Azure Monitor Workspace resource IDs to connect to the Dashboard Grafana"
 }
 
 # required AVM interfaces
@@ -45,6 +69,12 @@ A map describing customer-managed keys to associate with the resource. This incl
 DESCRIPTION  
 }
 
+variable "deterministic_outbound_ip_enabled" {
+  type        = bool
+  default     = false
+  description = "Whether to enable the Grafana instance to use deterministic outbound IPs. Defaults to `false`."
+}
+
 variable "diagnostic_settings" {
   type = map(object({
     name                                     = optional(string, null)
@@ -60,7 +90,7 @@ variable "diagnostic_settings" {
   }))
   default     = {}
   description = <<DESCRIPTION
-A map of diagnostic settings to create on the Key Vault. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
+A map of diagnostic settings to create on the Dashboard Grafana. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
 
 - `name` - (Optional) The name of the diagnostic setting. One will be generated if not set, however this will not be unique if you want to create multiple diagnostic setting resources.
 - `log_categories` - (Optional) A set of log categories to send to the log analytics workspace. Defaults to `[]`.
@@ -108,7 +138,7 @@ variable "lock" {
   })
   default     = null
   description = <<DESCRIPTION
-Controls the Resource Lock configuration for this resource. The following properties can be specified:
+Controls the Resource Lock configuration for the Dashboard Grafana. The following properties can be specified:
 
 - `kind` - (Required) The type of lock. Possible values are `\"CanNotDelete\"` and `\"ReadOnly\"`.
 - `name` - (Optional) The name of the lock. If not specified, a name will be generated based on the `kind` value. Changing this forces the creation of a new resource.
@@ -128,12 +158,32 @@ variable "managed_identities" {
   })
   default     = {}
   description = <<DESCRIPTION
-Controls the Managed Identity configuration on this resource. The following properties can be specified:
+Controls the Managed Identity configuration on the Dashboard Grafana. The following properties can be specified:
 
 - `system_assigned` - (Optional) Specifies if the System Assigned Managed Identity should be enabled.
-- `user_assigned_resource_ids` - (Optional) Specifies a list of User Assigned Managed Identity resource IDs to be assigned to this resource.
+- `user_assigned_resource_ids` - (Optional) Specifies a list of User Assigned Managed Identity resource IDs to be assigned to the Dashboard Grafana.
 DESCRIPTION
   nullable    = false
+}
+
+variable "managed_private_endpoints" {
+  type = map(object({
+    location                     = optional(string, null)
+    name                         = optional(string, null)
+    private_link_resource_id     = string
+    group_ids                    = optional(list(string), [])
+    private_link_resource_region = optional(string, null)
+  }))
+  default     = {}
+  description = <<DESCRIPTION
+A map of Dashboard Grafana Managed Private Endpoints to create. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
+
+- `location` - (Optional) The Azure Region where the Dashboard Grafana Managed Private Endpoint should exist. Defaults to the location of the Dashboard Grafana. Changing this forces a new Dashboard Grafana Managed Private Endpoint to be created.
+- `name` - (Optional) The name which should be used for this Dashboard Grafana Managed Private Endpoint. One will be generated if not set. Must be between 2 and 20 alphanumeric characters or dashes, must begin with letter and end with a letter or number. Changing this forces a new Dashboard Grafana Managed Private Endpoint to be created.
+- `private_link_resource_id` - The ID of the resource to which this Dashboard Grafana Managed Private Endpoint will connect. Changing this forces a new Dashboard Grafana Managed Private Endpoint to be created.
+- `group_ids` - (Optional) Specifies a list of private link group IDs. If not set, no private link subresources will be associated with the managed private endpoint. The value of this will depend on the private link resource to which you are connecting. Changing this forces a new Dashboard Grafana Managed Private Endpoint to be created.
+- `private_link_resource_region` - (Optional) The region in which to create the private link. Defaults to the location of the Dashboard Grafana. Changing this forces a new Dashboard Grafana Managed Private Endpoint to be created.
+DESCRIPTION
 }
 
 variable "private_endpoints" {
@@ -168,7 +218,7 @@ variable "private_endpoints" {
   }))
   default     = {}
   description = <<DESCRIPTION
-A map of private endpoints to create on this resource. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
+A map of private endpoints to create on the Dashboard Grafana. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
 
 - `name` - (Optional) The name of the private endpoint. One will be generated if not set.
 - `role_assignments` - (Optional) A map of role assignments to create on the private endpoint. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time. See `var.role_assignments` for more information.
@@ -181,7 +231,7 @@ A map of private endpoints to create on this resource. The map key is deliberate
 - `private_service_connection_name` - (Optional) The name of the private service connection. One will be generated if not set.
 - `network_interface_name` - (Optional) The name of the network interface. One will be generated if not set.
 - `location` - (Optional) The Azure location where the resources will be deployed. Defaults to the location of the resource group.
-- `resource_group_name` - (Optional) The resource group where the resources will be deployed. Defaults to the resource group of this resource.
+- `resource_group_name` - (Optional) The resource group where the resources will be deployed. Defaults to the resource group of the Dashboard Grafana.
 - `ip_configurations` - (Optional) A map of IP configurations to create on the private endpoint. If not specified the platform will create one. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
   - `name` - The name of the IP configuration.
   - `private_ip_address` - The private IP address of the IP configuration.
@@ -200,6 +250,12 @@ variable "private_endpoints_manage_dns_zone_group" {
   nullable    = false
 }
 
+variable "public_network_access_enabled" {
+  type        = bool
+  default     = true
+  description = "Whether to enable traffic over the public interface. Defaults to `true`."
+}
+
 variable "role_assignments" {
   type = map(object({
     role_definition_id_or_name             = string
@@ -212,7 +268,7 @@ variable "role_assignments" {
   }))
   default     = {}
   description = <<DESCRIPTION
-A map of role assignments to create on this resource. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
+A map of role assignments to create on the Dashboard Grafana. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
 
 - `role_definition_id_or_name` - The ID or name of the role definition to assign to the principal.
 - `principal_id` - The ID of the principal to assign the role to.
@@ -226,9 +282,47 @@ DESCRIPTION
   nullable    = false
 }
 
+variable "sku" {
+  type        = string
+  default     = "Standard"
+  description = "The name of the SKU used for the Grafana instance. Possible values are `Standard` and `Essential`. Defaults to `Standard`. Changing this forces a new Dashboard Grafana to be created."
+}
+
+variable "smtp" {
+  type = object({
+    enabled                   = optional(bool, true)
+    host                      = string
+    user                      = string
+    password                  = string
+    start_tls_policy          = string
+    from_address              = string
+    from_name                 = optional(string, "Azure Managed Grafana Notification")
+    verification_skip_enabled = optional(bool, false)
+  })
+  default     = null
+  description = <<DESCRIPTION
+A smtp block as defined below.
+
+- `enabled` - (Optional) Whether to enable the smtp setting of the Grafana instance. Defaults to `false`.
+- `host` - SMTP server hostname with port, e.g. test.email.net:587
+- `user` - User of SMTP authentication.
+- `password` - Password of SMTP authentication.
+- `start_tls_policy` - Whether to use TLS when connecting to SMTP server. Possible values are `OpportunisticStartTLS`, `NoStartTLS`, `MandatoryStartTLS`.
+- `from_address` - Address used when sending emails.
+- `from_name` - (Optional) Name used when sending emails. Defaults to `Azure Managed Grafana Notification`.
+- `verification_skip_enabled` - (Optional) Whether verify SSL for SMTP server. Defaults to `false`.
+DESCRIPTION
+}
+
 # tflint-ignore: terraform_unused_declarations
 variable "tags" {
   type        = map(string)
   default     = null
   description = "(Optional) Tags of the resource."
+}
+
+variable "zone_redundancy_enabled" {
+  type        = bool
+  default     = false
+  description = "Whether to enable the zone redundancy setting of the Grafana instance. Defaults to `false`. Changing this forces a new Dashboard Grafana to be created."
 }
