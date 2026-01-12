@@ -289,7 +289,7 @@ module "test" {
   )
   private_endpoints = {
     this = {
-      subnet_resource_id                     = module.virtual_network.subnets["private_endpoints"].resource_id
+      subnet_resource_id            = module.virtual_network.subnets["private_endpoints"].resource_id
       private_dns_zone_resource_ids = [module.private_dns_zone["grafana:grafana"].resource_id]
     }
   }

@@ -65,28 +65,6 @@ resource "azurerm_resource_group" "this" {
 
 # Locals for configuration
 locals {
-  private_dns_zone_groups = {
-    grafana = {
-      grafana = "privatelink.grafana.azure.com"
-    }
-    monitor = {
-      agentsvc       = "privatelink.agentsvc.azure-automation.net"
-      monitor        = "privatelink.monitor.azure.com"
-      oms_opinsights = "privatelink.oms.opinsights.azure.com"
-      ods_opinsights = "privatelink.ods.opinsights.azure.com"
-    }
-    prometheus = {
-      prometheus = "privatelink.${azurerm_resource_group.this.location}.prometheus.monitor.azure.com"
-    }
-    storage = {
-      blob = "privatelink.blob.core.windows.net"
-    }
-  }
-  private_dns_zones = merge([
-    for group_key, zones in local.private_dns_zone_groups : {
-      for zone_key, domain in zones : "${group_key}:${zone_key}" => domain
-    }
-  ]...)
   tags = {
     source = "avm-res-dashboard-grafana/examples/complete"
   }
@@ -113,6 +91,30 @@ module "virtual_network" {
 }
 
 # Required Private DNS Zones
+locals {
+  private_dns_zone_groups = {
+    grafana = {
+      grafana = "privatelink.grafana.azure.com"
+    }
+    monitor = {
+      agentsvc       = "privatelink.agentsvc.azure-automation.net"
+      monitor        = "privatelink.monitor.azure.com"
+      oms_opinsights = "privatelink.oms.opinsights.azure.com"
+      ods_opinsights = "privatelink.ods.opinsights.azure.com"
+    }
+    prometheus = {
+      prometheus = "privatelink.${azurerm_resource_group.this.location}.prometheus.monitor.azure.com"
+    }
+    storage = {
+      blob = "privatelink.blob.core.windows.net"
+    }
+  }
+  private_dns_zones = merge([
+    for group_key, zones in local.private_dns_zone_groups : {
+      for zone_key, domain in zones : "${group_key}:${zone_key}" => domain
+    }
+  ]...)
+}
 module "private_dns_zone" {
   source   = "Azure/avm-res-network-privatednszone/azurerm"
   version  = "0.4.3"
@@ -229,24 +231,23 @@ resource "azuread_group" "grafana_reader" {
 }
 
 locals {
-  grafana_identity = module.grafana.resource.identity[0].principal_id
   role_assignments = merge(
     {
       "amg:monitoring-reader:rg" = {
-        principal_id         = local.grafana_identity
+        principal_id         = module.test.resource.identity[0].principal_id
         role_definition_name = "Monitoring Reader"
         scope                = azurerm_resource_group.this.id
       }
 
       "amg:log-analytics-data-reader:law" = {
-        principal_id         = local.grafana_identity
+        principal_id         = module.test.resource.identity[0].principal_id
         role_definition_name = "Log Analytics Data Reader"
         scope                = module.log_analytics_workspace.resource_id
       }
     },
     {
       for idx, amw in azurerm_monitor_workspace.this : "amg:monitoring-data-reader:amw${idx}" => {
-        principal_id         = local.grafana_identity
+        principal_id         = module.test.resource.identity[0].principal_id
         role_definition_name = "Monitoring Data Reader"
         scope                = amw.id
       }
@@ -303,7 +304,7 @@ module "test" {
   )
   private_endpoints = {
     this = {
-      subnet_id                     = module.virtual_network.subnets["private_endpoints"].resource_id
+      subnet_resource_id            = module.virtual_network.subnets["private_endpoints"].resource_id
       private_dns_zone_resource_ids = [module.private_dns_zone["grafana:grafana"].resource_id]
     }
   }
