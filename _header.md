@@ -1,4 +1,4 @@
-# terraform-azurerm-avm-template
+# terraform-azurerm-avm-res-dashboard-grafana
 
 This Terraform module is designed to create an Azure-Managed Grafana instance and its related resources, including Private Endpoints and Grafana Managed Private Endpoints, which provide secure and direct connectivity to Azure-Managed Grafana, as well as between Azure-Managed Grafana and compatible data sources over a private network.
 
