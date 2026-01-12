@@ -291,12 +291,14 @@ module "test" {
   managed_private_endpoints = merge(
     {
       for idx, amw in azurerm_monitor_workspace.this : "amw${idx}" => {
+        name                     = "mpe-amw${idx}"
         private_link_resource_id = amw.id
         group_ids                = ["prometheusMetrics"]
       }
     },
     {
       ampls = {
+        name                     = "mpe-ampls"
         private_link_resource_id = azurerm_monitor_private_link_scope.this.id
         group_ids                = ["azuremonitor"]
       }

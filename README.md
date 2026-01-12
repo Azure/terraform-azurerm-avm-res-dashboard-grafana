@@ -222,7 +222,7 @@ Type:
 ```hcl
 map(object({
     location                     = optional(string, null)
-    name                         = optional(string, null)
+    name                         = string
     private_link_resource_id     = string
     group_ids                    = optional(list(string), [])
     private_link_resource_region = optional(string, null)
