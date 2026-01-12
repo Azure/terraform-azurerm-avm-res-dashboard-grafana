@@ -55,12 +55,11 @@ resource "azurerm_resource_group" "this" {
 module "test" {
   source = "../../"
 
+  grafana_major_version = 11
   # source             = "Azure/avm-<res/ptn>-<name>/azurerm"
   # ...
   location            = azurerm_resource_group.this.location
   name                = module.naming.dashboard_grafana.name_unique
   resource_group_name = azurerm_resource_group.this.name
   enable_telemetry    = var.enable_telemetry
-
-  grafana_major_version = 11
 }
