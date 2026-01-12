@@ -1,11 +1,11 @@
-output "name" {
-  description = "The Name of the Dashboard Grafana."
-  value       = azurerm_dashboard_grafana.this.name
-}
-
 output "managed_private_endpoints" {
   description = "A map of managed private endpoints. The map key is the supplied input to var.managed_private_endpoints. The map value is the entire azurerm_grafana_managed_private_endpoint resource."
   value       = azurerm_dashboard_grafana_managed_private_endpoint.this
+}
+
+output "name" {
+  description = "The Name of the Dashboard Grafana."
+  value       = azurerm_dashboard_grafana.this.name
 }
 
 output "private_endpoints" {
