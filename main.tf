@@ -47,7 +47,7 @@ resource "azurerm_dashboard_grafana_managed_private_endpoint" "this" {
 
   grafana_id                   = azurerm_dashboard_grafana.this.id
   location                     = each.value.location != null ? each.value.location : var.location
-  name                         = each.value.name != null ? each.value.name : substr(replace("mpe-${var.name}", "/[^a-zA-Z0-9-]/", ""), 0, 20)
+  name                         = each.value.name
   private_link_resource_id     = each.value.private_link_resource_id
   group_ids                    = each.value.group_ids
   private_link_resource_region = each.value.private_link_resource_region != null ? each.value.private_link_resource_region : var.location # Is this required?
