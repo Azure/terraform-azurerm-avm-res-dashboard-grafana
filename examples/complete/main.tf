@@ -63,94 +63,80 @@ locals {
       blob = "privatelink.blob.core.windows.net"
     }
   }
-
   private_dns_zones = merge([
     for group_key, zones in local.private_dns_zone_groups : {
       for zone_key, domain in zones : "${group_key}:${zone_key}" => domain
     }
   ]...)
-
-  vnet_address_space = "10.0.0.0/16"
-
   tags = {
     source = "avm-res-dashboard-grafana/examples/complete"
   }
+  vnet_address_space = "10.0.0.0/16"
 }
 
 # Virtual Network
 module "virtual_network" {
-  source           = "Azure/avm-res-network-virtualnetwork/azurerm"
-  version          = "0.16.0"
+  source  = "Azure/avm-res-network-virtualnetwork/azurerm"
+  version = "0.16.0"
+
+  location         = azurerm_resource_group.this.location
+  parent_id        = azurerm_resource_group.this.id
+  address_space    = [local.vnet_address_space]
   enable_telemetry = var.enable_telemetry
-
-  name      = module.naming.virtual_network.name_unique
-  location  = azurerm_resource_group.this.location
-  parent_id = azurerm_resource_group.this.id
-
-  address_space = [local.vnet_address_space]
-
+  name             = module.naming.virtual_network.name_unique
   subnets = {
     private_endpoints = {
       name             = "snet-pep"
       address_prefixes = [cidrsubnet(local.vnet_address_space, 8, 0)] # 10.0.0.0/24
     }
   }
-
   tags = local.tags
 }
 
 # Required Private DNS Zones
 module "private_dns_zone" {
+  source   = "Azure/avm-res-network-privatednszone/azurerm"
+  version  = "0.4.3"
   for_each = local.private_dns_zones
 
-  source           = "Azure/avm-res-network-privatednszone/azurerm"
-  version          = "0.4.3"
+  domain_name      = each.value
+  parent_id        = azurerm_resource_group.this.id
   enable_telemetry = var.enable_telemetry
-
-  domain_name = each.value
-  parent_id   = azurerm_resource_group.this.id
-
+  tags             = local.tags
   virtual_network_links = {
     vnetlink1 = {
       name   = "local-vnet-link"
       vnetid = module.virtual_network.resource_id
     }
   }
-
-  tags = local.tags
 }
 
 # Azure Monitor Private Link Scope
 resource "azurerm_monitor_private_link_scope" "this" {
-  name                = "ampls-${module.naming.unique-seed}" # No output for AMPLS naming
-  resource_group_name = azurerm_resource_group.this.name
-
+  name                  = "ampls-${module.naming.unique-seed}" # No output for AMPLS naming
+  resource_group_name   = azurerm_resource_group.this.name
   ingestion_access_mode = "PrivateOnly"
   query_access_mode     = "PrivateOnly"
-
-  tags = local.tags
+  tags                  = local.tags
 }
 
 # Log Analytics Workspace for Diagnostics
 module "log_analytics_workspace" {
-  source           = "Azure/avm-res-operationalinsights-workspace/azurerm"
-  version          = "0.5.1"
-  enable_telemetry = var.enable_telemetry
+  source  = "Azure/avm-res-operationalinsights-workspace/azurerm"
+  version = "0.5.1"
 
-  name                = module.naming.log_analytics_workspace.name_unique
   location            = azurerm_resource_group.this.location
+  name                = module.naming.log_analytics_workspace.name_unique
   resource_group_name = azurerm_resource_group.this.name
-
+  enable_telemetry    = var.enable_telemetry
   log_analytics_workspace_identity = {
     type = "SystemAssigned"
   }
-
   monitor_private_link_scoped_resource = {
     ampls = {
       resource_id = azurerm_monitor_private_link_scope.this.id
     }
   }
-
   private_endpoints = {
     ampls = {
       name               = "pe-${azurerm_monitor_private_link_scope.this.name}"
@@ -167,7 +153,6 @@ module "log_analytics_workspace" {
       tags = local.tags
     }
   }
-
   tags = local.tags
 }
 
@@ -175,38 +160,32 @@ module "log_analytics_workspace" {
 resource "azurerm_monitor_workspace" "this" {
   count = 2
 
-  name                = "amw-${module.naming.unique-seed}"
-  location            = azurerm_resource_group.this.location
-  resource_group_name = azurerm_resource_group.this.name
-
+  location                      = azurerm_resource_group.this.location
+  name                          = "amw-${module.naming.unique-seed}"
+  resource_group_name           = azurerm_resource_group.this.name
   public_network_access_enabled = false
-
-  tags = local.tags
+  tags                          = local.tags
 }
 
 resource "azurerm_private_endpoint" "amw" {
   count = 2
 
-  name                = "pe-${azurerm_monitor_workspace.this[count.index].name}"
   location            = azurerm_resource_group.this.location
+  name                = "pe-${azurerm_monitor_workspace.this[count.index].name}"
   resource_group_name = azurerm_resource_group.this.name
-
-  subnet_id = module.virtual_network.subnets["private_endpoints"].resource_id
+  subnet_id           = module.virtual_network.subnets["private_endpoints"].resource_id
+  tags                = local.tags
 
   private_service_connection {
-    name = "pse-${azurerm_monitor_workspace.this[count.index].name}"
-
     is_manual_connection           = false
+    name                           = "pse-${azurerm_monitor_workspace.this[count.index].name}"
     private_connection_resource_id = azurerm_monitor_workspace.this[count.index].id
     subresource_names              = ["prometheusMetrics"]
   }
-
   private_dns_zone_group {
     name                 = "default"
     private_dns_zone_ids = [module.private_dns_zone["prometheus:prometheus"].resource_id]
   }
-
-  tags = local.tags
 }
 
 resource "azurerm_monitor_diagnostic_setting" "amw" {
@@ -219,7 +198,6 @@ resource "azurerm_monitor_diagnostic_setting" "amw" {
   enabled_log {
     category_group = "allLogs"
   }
-
   enabled_metric {
     category = "AllMetrics"
   }
@@ -233,7 +211,6 @@ resource "azuread_group" "grafana_reader" {
 
 locals {
   grafana_identity = module.grafana.resource.identity[0].principal_id
-
   role_assignments = merge(
     {
       "amg:monitoring-reader:rg" = {
@@ -263,8 +240,8 @@ resource "azurerm_role_assignment" "this" {
   for_each = local.role_assignments
 
   principal_id         = each.value.principal_id
-  role_definition_name = each.value.role_definition_name
   scope                = each.value.scope
+  role_definition_name = each.value.role_definition_name
 }
 
 
@@ -275,22 +252,22 @@ resource "azurerm_role_assignment" "this" {
 module "test" {
   source = "../../"
 
-  name                = module.naming.dashboard_grafana.name_unique
-  location            = azurerm_resource_group.this.location
-  resource_group_name = azurerm_resource_group.this.name
-
-  api_key_enabled               = true
-  grafana_major_version         = "11"
-  public_network_access_enabled = false
-
+  grafana_major_version = "11"
+  location              = azurerm_resource_group.this.location
+  name                  = module.naming.dashboard_grafana.name_unique
+  resource_group_name   = azurerm_resource_group.this.name
+  api_key_enabled       = true
   azure_monitor_workspace_integrations = [
     for idx, amw in azurerm_monitor_workspace.this : amw.id
   ]
-
+  diagnostic_settings = {
+    this = {
+      workspace_resource_id = module.log_analytics_workspace.resource_id
+    }
+  }
   managed_identities = {
     system_assigned = true
   }
-
   managed_private_endpoints = merge(
     {
       for idx, amw in azurerm_monitor_workspace.this : "amw${idx}" => {
@@ -305,26 +282,18 @@ module "test" {
       }
     }
   )
-
   private_endpoints = {
     this = {
       subnet_id                     = module.virtual_network.subnets["private_endpoints"].resource_id
       private_dns_zone_resource_ids = [module.private_dns_zone["grafana:grafana"].resource_id]
     }
   }
-
-  diagnostic_settings = {
-    this = {
-      workspace_resource_id = module.log_analytics_workspace.resource_id
-    }
-  }
-
+  public_network_access_enabled = false
   role_assignments = {
     "reader_group:grafana-reader" = {
       principal_id               = azuread_group.grafana_reader.object_id
       role_definition_id_or_name = "Grafana Reader"
     }
   }
-
   tags = local.tags
 }
