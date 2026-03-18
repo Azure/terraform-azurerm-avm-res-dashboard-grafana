@@ -1,18 +1,21 @@
+variable "grafana_major_version" {
+  type        = number
+  description = "Which major version of Grafana to deploy. Possible values are `10`, `11`."
+}
+
 variable "location" {
   type        = string
-  description = "Azure region where the resource should be deployed."
+  description = "Azure region where the Dashboard Grafana resource should be deployed."
   nullable    = false
 }
 
 variable "name" {
   type        = string
-  description = "The name of the this resource."
+  description = "The name of the Dashboard Grafana resource."
 
   validation {
-    condition     = can(regex("TODO", var.name))
-    error_message = "The name must be TODO." # TODO remove the example below once complete:
-    #condition     = can(regex("^[a-z0-9]{5,50}$", var.name))
-    #error_message = "The name must be between 5 and 50 characters long and can only contain lowercase letters and numbers."
+    condition     = can(regex("^[a-zA-Z]{1}[a-zA-Z0-9-]{0,21}?[a-zA-Z0-9]{1}$", var.name))
+    error_message = "The name must begin with a letter, can only be alphanumeric characters or hyphens, must be 23 characters long or smaller, and the name must end with an alphanumeric character."
   }
 }
 
@@ -20,6 +23,24 @@ variable "name" {
 variable "resource_group_name" {
   type        = string
   description = "The resource group where the resources will be deployed."
+}
+
+variable "api_key_enabled" {
+  type        = bool
+  default     = false
+  description = "Whether to enable the api key setting of the Grafana instance. Defaults to `false`."
+}
+
+variable "auto_generated_domain_name_label_scope" {
+  type        = string
+  default     = "TenantReuse"
+  description = "Scope for dns deterministic name hash calculation. The only possible value is `TenantReuse`. Defaults to `TenantReuse`."
+}
+
+variable "azure_monitor_workspace_integrations" {
+  type        = list(string)
+  default     = []
+  description = "A list of Azure Monitor Workspace resource IDs to connect to the Dashboard Grafana"
 }
 
 # required AVM interfaces
@@ -34,15 +55,13 @@ variable "customer_managed_key" {
       resource_id = string
     }), null)
   })
-  default     = null
-  description = <<DESCRIPTION
-A map describing customer-managed keys to associate with the resource. This includes the following properties:
-- `key_vault_resource_id` - The resource ID of the Key Vault where the key is stored.
-- `key_name` - The name of the key.
-- `key_version` - (Optional) The version of the key. If not specified, the latest version is used.
-- `user_assigned_identity` - (Optional) An object representing a user-assigned identity with the following properties:
-  - `resource_id` - The resource ID of the user-assigned identity.
-DESCRIPTION  
+  default = null
+}
+
+variable "deterministic_outbound_ip_enabled" {
+  type        = bool
+  default     = false
+  description = "Whether to enable the Grafana instance to use deterministic outbound IPs. Defaults to `false`."
 }
 
 variable "diagnostic_settings" {
@@ -72,7 +91,7 @@ A map of diagnostic settings to create on the Key Vault. The map key is delibera
 - `event_hub_authorization_rule_resource_id` - (Optional) The resource ID of the event hub authorization rule to send logs and metrics to.
 - `event_hub_name` - (Optional) The name of the event hub. If none is specified, the default event hub will be selected.
 - `marketplace_partner_resource_id` - (Optional) The full ARM resource ID of the Marketplace resource to which you would like to send Diagnostic LogsLogs.
-DESCRIPTION  
+DESCRIPTION
   nullable    = false
 
   validation {
@@ -116,7 +135,7 @@ DESCRIPTION
 
   validation {
     condition     = var.lock != null ? contains(["CanNotDelete", "ReadOnly"], var.lock.kind) : true
-    error_message = "The lock level must be one of: 'None', 'CanNotDelete', or 'ReadOnly'."
+    error_message = "Lock kind must be either `\"CanNotDelete\"` or `\"ReadOnly\"`."
   }
 }
 
@@ -136,6 +155,26 @@ DESCRIPTION
   nullable    = false
 }
 
+variable "managed_private_endpoints" {
+  type = map(object({
+    location                     = optional(string, null)
+    name                         = string
+    private_link_resource_id     = string
+    group_ids                    = optional(list(string), [])
+    private_link_resource_region = optional(string, null)
+  }))
+  default     = {}
+  description = <<DESCRIPTION
+A map of Dashboard Grafana Managed Private Endpoints to create. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
+
+- `location` - (Optional) The Azure Region where the Dashboard Grafana Managed Private Endpoint should exist. Defaults to the location of the Dashboard Grafana. Changing this forces a new Dashboard Grafana Managed Private Endpoint to be created.
+- `name` - (Optional) The name which should be used for this Dashboard Grafana Managed Private Endpoint. One will be generated if not set. Must be between 2 and 20 alphanumeric characters or dashes, must begin with letter and end with a letter or number. Changing this forces a new Dashboard Grafana Managed Private Endpoint to be created.
+- `private_link_resource_id` - The ID of the resource to which this Dashboard Grafana Managed Private Endpoint will connect. Changing this forces a new Dashboard Grafana Managed Private Endpoint to be created.
+- `group_ids` - (Optional) Specifies a list of private link group IDs. If not set, no private link subresources will be associated with the managed private endpoint. The value of this will depend on the private link resource to which you are connecting. Changing this forces a new Dashboard Grafana Managed Private Endpoint to be created.
+- `private_link_resource_region` - (Optional) The region in which to create the private link. Defaults to the location of the Dashboard Grafana. Changing this forces a new Dashboard Grafana Managed Private Endpoint to be created.
+DESCRIPTION
+}
+
 variable "private_endpoints" {
   type = map(object({
     name = optional(string, null)
@@ -147,6 +186,7 @@ variable "private_endpoints" {
       condition                              = optional(string, null)
       condition_version                      = optional(string, null)
       delegated_managed_identity_resource_id = optional(string, null)
+      principal_type                         = optional(string, null)
     })), {})
     lock = optional(object({
       kind = string
@@ -168,11 +208,21 @@ variable "private_endpoints" {
   }))
   default     = {}
   description = <<DESCRIPTION
-A map of private endpoints to create on this resource. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
+A map of private endpoints to create on the Key Vault. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
 
 - `name` - (Optional) The name of the private endpoint. One will be generated if not set.
 - `role_assignments` - (Optional) A map of role assignments to create on the private endpoint. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time. See `var.role_assignments` for more information.
+  - `role_definition_id_or_name` - The ID or name of the role definition to assign to the principal.
+  - `principal_id` - The ID of the principal to assign the role to.
+  - `description` - (Optional) The description of the role assignment.
+  - `skip_service_principal_aad_check` - (Optional) If set to true, skips the Azure Active Directory check for the service principal in the tenant. Defaults to false.
+  - `condition` - (Optional) The condition which will be used to scope the role assignment.
+  - `condition_version` - (Optional) The version of the condition syntax. Leave as `null` if you are not using a condition, if you are then valid values are '2.0'.
+  - `delegated_managed_identity_resource_id` - (Optional) The delegated Azure Resource Id which contains a Managed Identity. Changing this forces a new resource to be created. This field is only used in cross-tenant scenario.
+  - `principal_type` - (Optional) The type of the `principal_id`. Possible values are `User`, `Group` and `ServicePrincipal`. It is necessary to explicitly set this attribute when creating role assignments if the principal creating the assignment is constrained by ABAC rules that filters on the PrincipalType attribute.
 - `lock` - (Optional) The lock level to apply to the private endpoint. Default is `None`. Possible values are `None`, `CanNotDelete`, and `ReadOnly`.
+  - `kind` - (Required) The type of lock. Possible values are `\"CanNotDelete\"` and `\"ReadOnly\"`.
+  - `name` - (Optional) The name of the lock. If not specified, a name will be generated based on the `kind` value. Changing this forces the creation of a new resource.
 - `tags` - (Optional) A mapping of tags to assign to the private endpoint.
 - `subnet_resource_id` - The resource ID of the subnet to deploy the private endpoint in.
 - `private_dns_zone_group_name` - (Optional) The name of the private DNS zone group. One will be generated if not set.
@@ -181,7 +231,7 @@ A map of private endpoints to create on this resource. The map key is deliberate
 - `private_service_connection_name` - (Optional) The name of the private service connection. One will be generated if not set.
 - `network_interface_name` - (Optional) The name of the network interface. One will be generated if not set.
 - `location` - (Optional) The Azure location where the resources will be deployed. Defaults to the location of the resource group.
-- `resource_group_name` - (Optional) The resource group where the resources will be deployed. Defaults to the resource group of this resource.
+- `resource_group_name` - (Optional) The resource group where the resources will be deployed. Defaults to the resource group of the Key Vault.
 - `ip_configurations` - (Optional) A map of IP configurations to create on the private endpoint. If not specified the platform will create one. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
   - `name` - The name of the IP configuration.
   - `private_ip_address` - The private IP address of the IP configuration.
@@ -200,6 +250,12 @@ variable "private_endpoints_manage_dns_zone_group" {
   nullable    = false
 }
 
+variable "public_network_access_enabled" {
+  type        = bool
+  default     = true
+  description = "Whether to enable traffic over the public interface. Defaults to `true`."
+}
+
 variable "role_assignments" {
   type = map(object({
     role_definition_id_or_name             = string
@@ -209,21 +265,56 @@ variable "role_assignments" {
     condition                              = optional(string, null)
     condition_version                      = optional(string, null)
     delegated_managed_identity_resource_id = optional(string, null)
+    principal_type                         = optional(string, null)
   }))
   default     = {}
   description = <<DESCRIPTION
-A map of role assignments to create on this resource. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
+A map of role assignments to create on the Dashboard Grafana. The map key is deliberately arbitrary to avoid issues where map keys maybe unknown at plan time.
 
 - `role_definition_id_or_name` - The ID or name of the role definition to assign to the principal.
 - `principal_id` - The ID of the principal to assign the role to.
-- `description` - The description of the role assignment.
-- `skip_service_principal_aad_check` - If set to true, skips the Azure Active Directory check for the service principal in the tenant. Defaults to false.
-- `condition` - The condition which will be used to scope the role assignment.
-- `condition_version` - The version of the condition syntax. Valid values are '2.0'.
+- `description` - (Optional) The description of the role assignment.
+- `skip_service_principal_aad_check` - (Optional) If set to true, skips the Azure Active Directory check for the service principal in the tenant. Defaults to false.
+- `condition` - (Optional) The condition which will be used to scope the role assignment.
+- `condition_version` - (Optional) The version of the condition syntax. Leave as `null` if you are not using a condition, if you are then valid values are '2.0'.
+- `delegated_managed_identity_resource_id` - (Optional) The delegated Azure Resource Id which contains a Managed Identity. Changing this forces a new resource to be created. This field is only used in cross-tenant scenario.
+- `principal_type` - (Optional) The type of the `principal_id`. Possible values are `User`, `Group` and `ServicePrincipal`. It is necessary to explicitly set this attribute when creating role assignments if the principal creating the assignment is constrained by ABAC rules that filters on the PrincipalType attribute.
 
 > Note: only set `skip_service_principal_aad_check` to true if you are assigning a role to a service principal.
 DESCRIPTION
   nullable    = false
+}
+
+variable "sku" {
+  type        = string
+  default     = "Standard"
+  description = "The name of the SKU used for the Grafana instance. Possible values are `Standard` and `Essential`. Defaults to `Standard`. Changing this forces a new Dashboard Grafana to be created."
+}
+
+variable "smtp" {
+  type = object({
+    enabled                   = optional(bool, true)
+    host                      = string
+    user                      = string
+    password                  = string
+    start_tls_policy          = string
+    from_address              = string
+    from_name                 = optional(string, "Azure Managed Grafana Notification")
+    verification_skip_enabled = optional(bool, false)
+  })
+  default     = null
+  description = <<DESCRIPTION
+A smtp block as defined below.
+
+- `enabled` - (Optional) Whether to enable the smtp setting of the Grafana instance. Defaults to `false`.
+- `host` - SMTP server hostname with port, e.g. test.email.net:587
+- `user` - User of SMTP authentication.
+- `password` - Password of SMTP authentication.
+- `start_tls_policy` - Whether to use TLS when connecting to SMTP server. Possible values are `OpportunisticStartTLS`, `NoStartTLS`, `MandatoryStartTLS`.
+- `from_address` - Address used when sending emails.
+- `from_name` - (Optional) Name used when sending emails. Defaults to `Azure Managed Grafana Notification`.
+- `verification_skip_enabled` - (Optional) Whether verify SSL for SMTP server. Defaults to `false`.
+DESCRIPTION
 }
 
 # tflint-ignore: terraform_unused_declarations
@@ -231,4 +322,10 @@ variable "tags" {
   type        = map(string)
   default     = null
   description = "(Optional) Tags of the resource."
+}
+
+variable "zone_redundancy_enabled" {
+  type        = bool
+  default     = false
+  description = "Whether to enable the zone redundancy setting of the Grafana instance. Defaults to `false`. Changing this forces a new Dashboard Grafana to be created."
 }
