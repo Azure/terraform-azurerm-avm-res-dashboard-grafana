@@ -1,0 +1,6 @@
+{
+  "$schema": "https://raw.githubusercontent.com/Azure/azure-verified-modules-tools/main/src/Avm.Authoring/Resources/Schemas/v1/avm-module-metadata.schema.json",
+  "moduleDisplayName": "Azure Managed Grafana Managed Private Endpoint",
+  "moduleDescription": "Creates a managed private endpoint on an Azure Managed Grafana workspace.",
+  "canonicalType": "helper"
+}
