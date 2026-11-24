@@ -180,6 +180,7 @@ module "managed_private_endpoint" {
   name                         = each.value.name
   parent_id                    = azapi_resource.this.id
   private_link_resource_id     = each.value.private_link_resource_id
+  enable_telemetry             = var.enable_telemetry
   ignore_body_changes          = var.ignore_body_changes.dashboard_grafana_managed_private_endpoints
   private_link_resource_region = each.value.private_link_resource_region
   private_link_service_url     = each.value.private_link_service_url
