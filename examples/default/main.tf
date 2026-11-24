@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.9, < 2.0"
+  required_version = ">= 1.11, < 2.0"
 
   required_providers {
     azapi = {
@@ -24,8 +24,13 @@ module "regions" {
   is_recommended   = true
 }
 
+locals {
+  # Azure Managed Grafana is not offered in every region.
+  grafana_regions = [for r in module.regions.regions : r.name if contains(["australiaeast", "eastus", "eastus2", "northeurope", "swedencentral", "uksouth", "westeurope", "westus3"], r.name)]
+}
+
 resource "random_integer" "region_index" {
-  max = length(module.regions.regions) - 1
+  max = length(local.grafana_regions) - 1
   min = 0
 }
 
@@ -37,7 +42,7 @@ module "naming" {
 data "azapi_client_config" "current" {}
 
 resource "azapi_resource" "resource_group" {
-  location               = module.regions.regions[random_integer.region_index.result].name
+  location               = local.grafana_regions[random_integer.region_index.result]
   name                   = module.naming.names.resource_group.name_unique
   parent_id              = "/subscriptions/${data.azapi_client_config.current.subscription_id}"
   type                   = "Microsoft.Resources/resourceGroups@2024-11-01"
@@ -47,9 +52,8 @@ resource "azapi_resource" "resource_group" {
 module "test" {
   source = "../../"
 
-  address_space    = ["10.0.0.0/16"]
   location         = azapi_resource.resource_group.location
-  name             = module.naming.names.virtual_network.name_unique
+  name             = substr(module.naming.names.grafana.name_unique, 0, 23)
   parent_id        = azapi_resource.resource_group.id
   enable_telemetry = var.enable_telemetry
 }

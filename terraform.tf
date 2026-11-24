@@ -1,5 +1,6 @@
 terraform {
-  required_version = ">= 1.9, < 2.0"
+  # 1.11 is required for the write-only `sensitive_body` argument fed by the ephemeral `smtp_password` input.
+  required_version = ">= 1.11, < 2.0"
 
   required_providers {
     azapi = {
