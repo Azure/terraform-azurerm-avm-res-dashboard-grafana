@@ -96,16 +96,16 @@ resource "azapi_resource" "this" {
 # Grafana only routes traffic through a managed private endpoint after the workspace is refreshed, and the refresh has to
 # follow the approval on the target resource. It runs when endpoints are added or removed, and when the trigger changes.
 resource "terraform_data" "managed_private_endpoints_refresh" {
-  count = length(var.managed_private_endpoints) > 0 ? 1 : 0
+  count = 1
 
   triggers_replace = {
-    endpoints = sort([for v in module.managed_private_endpoint : v.resource_id])
+    endpoints = var.managed_private_endpoints
     trigger   = var.managed_private_endpoints_refresh_trigger
   }
 }
 
 resource "azapi_resource_action" "refresh_managed_private_endpoints" {
-  count = length(var.managed_private_endpoints) > 0 ? 1 : 0
+  count = 1
 
   action                 = "refreshManagedPrivateEndpoints"
   method                 = "POST"
@@ -128,6 +128,7 @@ resource "azapi_resource_action" "refresh_managed_private_endpoints" {
   lifecycle {
     replace_triggered_by = [terraform_data.managed_private_endpoints_refresh[count.index]]
   }
+  depends_on = [module.managed_private_endpoint]
 }
 
 # A rotated password alone makes no diff, so `smtp_password_version` pushes it.

@@ -125,8 +125,8 @@ run "defaults" {
     error_message = "External snapshot publishing must be disabled by default."
   }
   assert {
-    condition     = length(azapi_resource_action.refresh_managed_private_endpoints) == 0
-    error_message = "No managed private endpoint refresh must run without managed private endpoints."
+    condition     = length(azapi_resource_action.refresh_managed_private_endpoints) == 1
+    error_message = "The refresh action must retain its singleton address so removing all managed private endpoints can trigger it."
   }
   providers = {
     azapi  = azapi
@@ -608,6 +608,50 @@ run "managed_private_endpoint" {
       azapi_resource_action.refresh_managed_private_endpoints[0].resource_id == azapi_resource.this.id
     )
     error_message = "Managed private endpoints must be followed by a refresh of the workspace."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
+}
+
+run "managed_private_endpoint_removal_setup" {
+  command   = apply
+  state_key = "managed_private_endpoint_removal"
+
+  variables {
+    managed_private_endpoints = {
+      prom = {
+        name                         = "mpe-amw"
+        private_link_resource_id     = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/rg-mon/providers/Microsoft.Monitor/accounts/amw-test"
+        private_link_resource_region = "westeurope"
+        group_ids                    = ["prometheusMetrics"]
+      }
+    }
+  }
+
+  assert {
+    condition     = length(module.managed_private_endpoint) == 1 && length(azapi_resource_action.refresh_managed_private_endpoints) == 1
+    error_message = "The transition setup must create the managed private endpoint and retain the refresh action."
+  }
+  providers = {
+    azapi  = azapi
+    random = random
+  }
+}
+
+run "managed_private_endpoint_removal" {
+  command   = apply
+  state_key = "managed_private_endpoint_removal"
+
+  assert {
+    condition = (
+      length(module.managed_private_endpoint) == 0 &&
+      length(terraform_data.managed_private_endpoints_refresh) == 1 &&
+      length(azapi_resource_action.refresh_managed_private_endpoints) == 1 &&
+      length(terraform_data.managed_private_endpoints_refresh[0].triggers_replace.endpoints) == 0
+    )
+    error_message = "Removing all managed private endpoints must retain the refresh resources and replace their trigger with an empty endpoint set."
   }
   providers = {
     azapi  = azapi
